@@ -1,0 +1,74 @@
+version: "3.9"
+
+# Lab de testes funcionais para vipera.sh
+# Cada serviço simula um ambiente com vetores específicos de LPE
+
+services:
+
+  # ── Target 1: SUID / Capabilities ──────────────────────
+  target-suid:
+    build:
+      context: targets/suid
+    container_name: lpe_suid
+    hostname: target-suid
+    volumes:
+      - ../vipera.sh:/opt/vipera.sh:ro
+      - ./results:/results
+    command: sleep infinity
+    cap_add: [SYS_PTRACE]
+
+  # ── Target 2: Sudo misconfiguration ────────────────────
+  target-sudo:
+    build:
+      context: targets/sudo
+    container_name: lpe_sudo
+    hostname: target-sudo
+    volumes:
+      - ../vipera.sh:/opt/vipera.sh:ro
+      - ./results:/results
+    command: sleep infinity
+
+  # ── Target 3: Cron wildcards + PATH hijack ─────────────
+  target-cron:
+    build:
+      context: targets/cron
+    container_name: lpe_cron
+    hostname: target-cron
+    volumes:
+      - ../vipera.sh:/opt/vipera.sh:ro
+      - ./results:/results
+    command: sleep infinity
+
+  # ── Target 4: Secrets / credenciais expostos ───────────
+  target-secrets:
+    build:
+      context: targets/secrets
+    container_name: lpe_secrets
+    hostname: target-secrets
+    volumes:
+      - ../vipera.sh:/opt/vipera.sh:ro
+      - ./results:/results
+    command: sleep infinity
+
+  # ── Target 5: Kernel CVEs / container escape ───────────
+  target-kernel:
+    build:
+      context: targets/kernel
+    container_name: lpe_kernel
+    hostname: target-kernel
+    volumes:
+      - ../vipera.sh:/opt/vipera.sh:ro
+      - ./results:/results
+    privileged: true
+    command: sleep infinity
+
+  # ── Target 6: NFS / PATH / env_keep ────────────────────
+  target-misc:
+    build:
+      context: targets/misc
+    container_name: lpe_misc
+    hostname: target-misc
+    volumes:
+      - ../vipera.sh:/opt/vipera.sh:ro
+      - ./results:/results
+    command: sleep infinity

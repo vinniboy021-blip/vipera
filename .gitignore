@@ -1,0 +1,5 @@
+lab/results/
+*.pcap
+*.log
+linpeas.sh
+linpeas_extra.sh
