@@ -755,13 +755,20 @@ if [ "$PORT_FORWARD" ]; then
     printf $RED"[-] Err: Invalid port forwarding configuration: $PORT_FORWARD. The format is: LOCAL_IP:LOCAL_PORT:REMOTE_IP:REMOTE_PORT\nFor example: 10.10.14.8:7777:127.0.0.1:8000"$NC;
     exit 0
   fi
+  # Validate IPs: only allow digits and dots (prevents command injection via bash -c "/dev/tcp/$IP/...")
+  if ! printf '%s' "$LOCAL_IP" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'; then
+    printf $RED"[-] Err: LOCAL_IP must be a valid IPv4 address, got: %s\n"$NC "$LOCAL_IP"; exit 0
+  fi
+  if ! printf '%s' "$REMOTE_IP" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'; then
+    printf $RED"[-] Err: REMOTE_IP must be a valid IPv4 address, got: %s\n"$NC "$REMOTE_IP"; exit 0
+  fi
   #Check if LOCAL_PORT is a number
   if ! [ "$(echo $LOCAL_PORT | grep -E '^[0-9]+$')" ]; then
-    printf $RED"[-] Err: Invalid port forwarding configuration: $PORT_FORWARD. The format is: LOCAL_IP:LOCAL_PORT:REMOTE_IP:REMOTE_PORT\nFor example: 10.10.14.8:7777:127.0.0.1:8000"$NC;
+    printf $RED"[-] Err: Invalid port forwarding configuration: $PORT_FORWARD. The format is: LOCAL_IP:LOCAL_PORT:REMOTE_IP:REMOTE_PORT\nFor example: 10.10.14.8:7777:127.0.0.1:8000"$NC; exit 0
   fi
   #Check if REMOTE_PORT is a number
   if ! [ "$(echo $REMOTE_PORT | grep -E '^[0-9]+$')" ]; then
-    printf $RED"[-] Err: Invalid port forwarding configuration: $PORT_FORWARD. The format is: LOCAL_IP:LOCAL_PORT:REMOTE_IP:REMOTE_PORT\nFor example: 10.10.14.8:7777:127.0.0.1:8000"$NC;
+    printf $RED"[-] Err: Invalid port forwarding configuration: $PORT_FORWARD. The format is: LOCAL_IP:LOCAL_PORT:REMOTE_IP:REMOTE_PORT\nFor example: 10.10.14.8:7777:127.0.0.1:8000"$NC; exit 0
   fi
   port_forward "$LOCAL_IP" "$LOCAL_PORT" "$REMOTE_IP" "$REMOTE_PORT"
   exit 0
@@ -3056,7 +3063,11 @@ kercve_eval_req_token() {
     fi
     if printf "%s" "$KERNEL_CVE_REQ" | grep -q '^cmd:'; then
         _cve_cmd="${KERNEL_CVE_REQ#cmd:}"
-        # Apenas comandos simples de leitura sao permitidos (grep, cat, lsmod, ls, test)
+        # Allowlist: comandos simples de leitura sem metacaracteres de shell
+        # Rejeitar qualquer cmd contendo $( ) ` ; & | < > para prevenir injecao
+        case "$_cve_cmd" in *'$('*|*'`'*|*';'*|*'&'*|*'|'*|*'>'*|*'<'*)
+          return 1 ;;
+        esac
         case "$_cve_cmd" in
           grep\ *|cat\ *|lsmod*|ls\ *|test\ *|"[ "*)
             eval "$_cve_cmd" >/dev/null 2>&1 ;;
@@ -24729,7 +24740,7 @@ fi
 print_title "Extra Checks (CVEs, Cloud, Containers, Secrets)"
 
 # ── Helpers ─────────────────────────────────────────────
-_LPE_PREHITS="/tmp/.lpe_prehits_$$"
+_LPE_PREHITS=$(mktemp /tmp/.lpe_prehits_XXXXXX 2>/dev/null || echo "/tmp/.lpe_prehits_$$")
 : > "$_LPE_PREHITS"
 extra_hit(){
   printf "${RED}[!] $1${NC}\n"
@@ -24746,7 +24757,7 @@ extra_ok(){ printf "${GREEN}[-] $1${NC}\n"; }
 # ── Sistema de score (early init para chamadas pre-FASE2) ─
 # add_score precisa estar definida antes do primeiro uso (~24782)
 if [ -z "$_LPE_PRESCORE" ]; then
-  _LPE_PRESCORE="/tmp/.lpe_prescore_$$"
+  _LPE_PRESCORE=$(mktemp /tmp/.lpe_prescore_XXXXXX 2>/dev/null || echo "/tmp/.lpe_prescore_$$")
   : > "$_LPE_PRESCORE"
   add_score() {
     if [ -n "$SCORE_FILE" ] && [ -f "$SCORE_FILE" ]; then
@@ -24762,7 +24773,7 @@ fi
 # add_exploit tambem pode ser chamada pre-FASE3 (ex.: CVE-2024-21626);
 # bufferiza em _LPE_PREEXPLOITS ate EXPLOITS_FILE existir (merge na FASE3).
 if [ -z "$_LPE_PREEXPLOITS" ]; then
-  _LPE_PREEXPLOITS="/tmp/.lpe_preexploits_$$"
+  _LPE_PREEXPLOITS=$(mktemp /tmp/.lpe_preexploits_XXXXXX 2>/dev/null || echo "/tmp/.lpe_preexploits_$$")
   : > "$_LPE_PREEXPLOITS"
   add_exploit() {
     if [ -n "$EXPLOITS_FILE" ] && [ -f "$EXPLOITS_FILE" ]; then
@@ -25350,9 +25361,11 @@ if [ -n "$_sudo_recent" ]; then
 fi
 
 # ── CVE-2024-26809 OtterRoot nftables pipapo double-free (kernel 5.6-6.7) ──
-_kv_maj=$(echo "$KVER" | cut -d. -f1)
-_kv_min=$(echo "$KVER" | cut -d. -f2)
+# Re-derive kernel version components here to avoid stale values from earlier blocks
+_kv_maj=$(echo "$KVER" | cut -d. -f1); _kv_maj=${_kv_maj:-0}
+_kv_min=$(echo "$KVER" | cut -d. -f2); _kv_min=${_kv_min:-0}
 _kv_pat=$(echo "$KVER" | cut -d. -f3 | grep -oE "^[0-9]+"); _kv_pat=${_kv_pat:-0}
+case "$_kv_maj$_kv_min$_kv_pat" in *[!0-9\ ]*) _kv_maj=0; _kv_min=0; _kv_pat=0 ;; esac
 _26809_vuln=0
 if [ "$_kv_maj" -eq 5 ] && [ "$_kv_min" -ge 6 ] 2>/dev/null; then _26809_vuln=1
 elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -lt 7 ] 2>/dev/null; then _26809_vuln=1
@@ -25360,7 +25373,7 @@ elif [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 7 ] && [ "$_kv_pat" -lt 2 ] 2>/dev
 fi
 if [ "$_26809_vuln" = "1" ]; then
   _nft_loaded=$(lsmod 2>/dev/null | grep -c "nf_tables" || echo 0)
-  _userns=$(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo 1)
+  _userns=$(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo 0)
   if [ "$_nft_loaded" -gt 0 ] || [ "$_userns" = "1" ]; then
     extra_hit "CVE-2024-26809 OtterRoot -- kernel $KVER (5.6-6.7) -- nft_pipapo double-free -- LPE root (PoC: osec.io/otterroot)"
     add_score 9 "CVE-2024-26809 OtterRoot nftables double-free"
@@ -25402,8 +25415,9 @@ fi
 _26923_vuln=0
 if [ "$_kv_maj" -eq 6 ] && [ "$_kv_min" -eq 8 ] && [ "$_kv_pat" -lt 7 ] 2>/dev/null; then _26923_vuln=1; fi
 if [ "$_26923_vuln" = "1" ]; then
-  _ubuntu=$(grep -i "ubuntu" /etc/os-release 2>/dev/null | head -1)
-  if [ -n "$_ubuntu" ]; then
+  _ubuntu_ver=$(grep -i "^VERSION_ID=" /etc/os-release 2>/dev/null | tr -d '"' | cut -d= -f2)
+  _ubuntu_id=$(grep -i "^ID=" /etc/os-release 2>/dev/null | tr -d '"' | cut -d= -f2 | tr '[:upper:]' '[:lower:]')
+  if [ "$_ubuntu_id" = "ubuntu" ] && [ "$_ubuntu_ver" = "24.04" ]; then
     extra_hit "CVE-2024-26923 af_unix race UAF -- Ubuntu 24.04 kernel $KVER (6.8.x < 6.8.7) -- LPE local (PoC: TyphoonPWN 2025)"
     add_score 8 "CVE-2024-26923 af_unix UAF Ubuntu"
   fi
@@ -25970,18 +25984,15 @@ fi
 # ═══════════════════════════════════════════════════════════
 
 # ── Sistema de score unificado (arquivo — persiste em subshells) ─
-# add_score usa o mesmo arquivo que inc_score (definido na FASE 2)
-# Inicializa placeholders — serao sobrescritos quando SCORE_FILE for criado
-_LPE_PRESCORE="/tmp/.lpe_prescore_$$"
-: > "$_LPE_PRESCORE"
+# _LPE_PRESCORE ja foi inicializado no bloco de early-init acima (linha ~24755).
+# Nao recriar aqui para nao truncar scores ja acumulados.
+# add_score redefine para incluir suporte a SCORE_FILE quando ele existir.
 add_score() {
-  # Se SCORE_FILE ja existe (FASE 2 iniciou), usa ele direto
   if [ -n "$SCORE_FILE" ] && [ -f "$SCORE_FILE" ]; then
     _s=$(cat "$SCORE_FILE" 2>/dev/null || echo 0)
     echo $(( _s + $1 )) > "$SCORE_FILE"
     echo "[+$1] $2" >> "${SCORE_FILE}.reasons"
   else
-    # Fase 2 ainda nao iniciou — acumula em arquivo pre-score
     echo "$1 $2" >> "$_LPE_PRESCORE"
   fi
 }
