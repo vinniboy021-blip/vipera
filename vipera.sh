@@ -719,6 +719,10 @@ if [ "$PORTS" ]; then
   fi
 fi
 if [ "$DISCOVERY" ]; then
+  _disc_ip=$(printf '%s' "$DISCOVERY" | cut -d '/' -f 1)
+  if ! printf '%s' "$_disc_ip" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'; then
+    printf $RED"[-] Err: -d requires a valid IPv4/MASK (e.g. 192.168.1.0/24), got: %s\n"$NC "$DISCOVERY"; exit 0
+  fi
   if [ "$PORTS" ]; then
     discovery_port_scan $DISCOVERY $PORTS
   else
@@ -730,6 +734,9 @@ if [ "$DISCOVERY" ]; then
   fi
   exit 0
 elif [ "$IP" ]; then
+  if ! printf '%s' "$IP" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'; then
+    printf $RED"[-] Err: -i requires a valid IPv4 address, got: %s\n"$NC "$IP"; exit 0
+  fi
   select_nc
   tcp_port_scan $IP "$PORTS"
   exit 0
@@ -2638,7 +2645,7 @@ except Exception:
 }
 cf31_run_python_probe() {
     CF31_PY="$1"
-    CF31_TMP_PY=/tmp/cf31-probe-$$.py
+    CF31_TMP_PY=$(mktemp /tmp/cf31-probe-XXXXXX.py 2>/dev/null || echo "/tmp/cf31-probe-$$.py")
     trap 'rm -f "$CF31_TMP_PY"' EXIT HUP INT TERM
     cat > "$CF31_TMP_PY" <<'PY'
 import errno, os, signal, socket, struct, sys, tempfile, shutil
@@ -14737,7 +14744,7 @@ check_interface_sniffable() {
             return 0
         fi
     elif check_command dumpcap; then
-        dumpcap_test_file="/tmp/.vipera_dumpcap_test_$$.pcap"
+        dumpcap_test_file=$(mktemp /tmp/.vipera_dumpcap_test_XXXXXX.pcap 2>/dev/null || echo "/tmp/.vipera_dumpcap_test_$$.pcap")
         if timeout 2 dumpcap -i "$iface" -c 1 -q -w "$dumpcap_test_file" >/dev/null 2>&1; then
             rm -f "$dumpcap_test_file" 2>/dev/null
             return 0
@@ -21662,19 +21669,19 @@ if [ "$PSTORAGE_MYSQL" ] || [ "$DEBUG" ]; then
           cat "$f"
         fi
       done
-      for f in $(find $d -name user.MYD 2>/dev/null); do
+      find "$d" -name user.MYD 2>/dev/null | while IFS= read -r f; do
         if [ -r "$f" ]; then
           echo "We can read the Mysql Hashes from $f" | sed -${E} "s,.*,${SED_RED},"
           grep -oaE "[-_\.\*a-zA-Z0-9]{3,}" "$f" | grep -v "mysql_native_password"
         fi
       done
-      for f in $(grep -lr "user\s*=" $d 2>/dev/null | grep -v "debian.cnf"); do
+      for f in $(grep -lr "user\s*=" "$d" 2>/dev/null | grep -v "debian.cnf"); do
         if [ -r "$f" ]; then
           u=$(cat "$f" | grep -v "#" | grep "user" | grep "=" 2>/dev/null)
           echo "From '$f' Mysql user: $u" | sed -${E} "s,$sh_usrs,${SED_LIGHT_CYAN}," | sed -${E} "s,$nosh_usrs,${SED_BLUE}," | sed -${E} "s,$knw_usrs,${SED_GREEN}," | sed "s,$USER,${SED_LIGHT_MAGENTA}," | sed "s,root,${SED_RED},"
         fi
       done
-      for f in $(find $d -name my.cnf 2>/dev/null); do
+      find "$d" -name my.cnf 2>/dev/null | while IFS= read -r f; do
         if [ -r "$f" ]; then
           echo "Found readable $f"
           grep -v "^#" "$f" | grep -Ev "\W+\#|^#" 2>/dev/null | grep -Iv "^$" | sed "s,password.*,${SED_RED},"
@@ -26239,7 +26246,7 @@ done
 
 # ── find / unica passagem (cache para reuso) ─────────────
 print_2title "Cache de Filesystem (find / unica passagem)"
-FIND_CACHE="/tmp/.lpe_find_cache_$$"
+FIND_CACHE=$(mktemp /tmp/.lpe_find_cache_XXXXXX 2>/dev/null || echo "/tmp/.lpe_find_cache_$$")
 extra_info "Gerando cache de arquivos graváveis (mais rapido que multiplos finds)..."
 find / -not -path "*/proc/*" -not -path "*/sys/*" \
   \( -writable -o -perm -4000 -o -perm -2000 \) \
@@ -26296,9 +26303,9 @@ fi
 # Uso: vipera.sh -q    -> mostra so os [!] hits
 # Uso: vipera.sh -j    -> salva /tmp/vipera_hits.json
 
-VIPERA_JSON="/tmp/vipera_hits_$$.json"
+VIPERA_JSON=$(mktemp /tmp/vipera_hits_XXXXXX.json 2>/dev/null || echo "/tmp/vipera_hits_$$.json")
 if [ "$EXTRA_JSON" = "1" ] || [ "$OUTPUT_JSON" = "1" ]; then
-  _json_out="${OUTPUT_JSON_FILE:-/tmp/vipera_hits_$$.json}"
+  _json_out="${OUTPUT_JSON_FILE:-$VIPERA_JSON}"
   # FINAL_SCORE so e calculado no SUMARIO FINAL (adiante); ler de SCORE_FILE se vazio
   if [ -z "$FINAL_SCORE" ]; then
     FINAL_SCORE=$(cat "$SCORE_FILE" 2>/dev/null); FINAL_SCORE=${FINAL_SCORE:-0}
