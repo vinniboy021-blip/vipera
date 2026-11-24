@@ -10058,7 +10058,7 @@ az_vm_print_token() {
     _az_vm_token_url="${_az_vm_token_url}\&$3"
   fi
   print_3title "$1" "T1552.005,T1580"
-  exec_with_jq eval $az_req "$_az_vm_token_url"
+  exec_with_jq az_vm_request "$_az_vm_token_url"
   echo ""
 }
 az_vm_print_standard_tokens() {
@@ -10119,32 +10119,32 @@ if [ "$is_az_vm" = "Yes" ]; then
   set_azure_request_command
   if [ "$az_req" ]; then
     print_3title "Instance details" "T1552.005,T1580"
-    exec_with_jq eval $az_req "$URL/instance?api-version=$API_VERSION"
+    exec_with_jq az_req "$URL/instance?api-version=$API_VERSION"
     echo ""
     print_3title "Load Balancer details" "T1552.005,T1580"
-    exec_with_jq eval $az_req "$URL/loadbalancer?api-version=$API_VERSION"
+    exec_with_jq az_req "$URL/loadbalancer?api-version=$API_VERSION"
     echo ""
     print_3title "User Data" "T1552.005,T1580"
-    exec_with_jq eval $az_req "$URL/instance/compute/userData?api-version=$API_VERSION\&format=text" | base64 -d 2>/dev/null
+    exec_with_jq az_req "$URL/instance/compute/userData?api-version=$API_VERSION\&format=text" | base64 -d 2>/dev/null
     echo ""
     print_3title "Custom Data and other configs (root needed)" "T1552.005,T1580"
     (cat /var/lib/waagent/ovf-env.xml || cat /var/lib/waagent/CustomData/ovf-env.xml) 2>/dev/null | sed "s,CustomData.*,${SED_RED},"
     echo ""
     print_3title "Management token" "T1552.005,T1580"
     print_info "This is the default VM managed identity token. If several user-assigned identities exist and no system identity is present, Azure may require client_id/object_id/msi_res_id."
-    exec_with_jq eval $az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://management.azure.com/"
+    exec_with_jq az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://management.azure.com/"
     echo ""
     print_3title "Graph token" "T1552.005,T1580"
     print_info "This is the default VM managed identity token."
-    exec_with_jq eval $az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://graph.microsoft.com/"
+    exec_with_jq az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://graph.microsoft.com/"
     echo ""
     print_3title "Vault token" "T1552.005,T1580"
     print_info "This is the default VM managed identity token."
-    exec_with_jq eval $az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://vault.azure.net/"
+    exec_with_jq az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://vault.azure.net/"
     echo ""
     print_3title "Storage token" "T1552.005,T1580"
     print_info "This is the default VM managed identity token."
-    exec_with_jq eval $az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://storage.azure.com/"
+    exec_with_jq az_req "$URL/identity/oauth2/token?api-version=$API_VERSION\&resource=https://storage.azure.com/"
     echo ""
     print_3title "Attached user-assigned managed identities and tokens" "T1552.005,T1580"
     print_info "LinPEAS tries to discover all attached UAIs by using the default Management token to read the VM ARM identity block. If that token cannot read Microsoft.Compute/virtualMachines/read, IMDS can still issue tokens for known client_id/object_id/msi_res_id values, but the full attached identity list cannot be discovered from IMDS alone."
@@ -10214,26 +10214,25 @@ fi
 if check_mitre_filter "T1552.005,T1580"; then
 if [ "$is_do" = "Yes" ]; then
   print_2title "DO Droplet Enumeration" "T1552.005,T1580"
-  do_req=""
-  if [ "$(command -v curl || echo -n '')" ]; then
-      do_req='curl -s -f -L '
-  elif [ "$(command -v wget || echo -n '')" ]; then
-      do_req='wget -q -O - '
-  else 
-      echo "Neither curl nor wget were found, I can't enumerate the metadata service :("
-  fi
-  if [ "$do_req" ]; then
+  _do_imds_req() {
+    if [ "$(command -v curl || echo -n '')" ]; then
+      curl -s -f -L "$1" 2>/dev/null
+    elif [ "$(command -v wget || echo -n '')" ]; then
+      wget -q -O - "$1" 2>/dev/null
+    fi
+  }
+  if [ "$(command -v curl || command -v wget || echo -n '')" ]; then
     URL="http://169.254.169.254/metadata"
-    printf "Id: "; eval $do_req "$URL/v1/id"; echo ""
-    printf "Region: "; eval $do_req "$URL/v1/region"; echo ""
-    printf "Public keys: "; eval $do_req "$URL/v1/public-keys"; echo ""
-    printf "User data: "; eval $do_req "$URL/v1/user-data"; echo ""
-    printf "Dns: "; eval $do_req "$URL/v1/dns/nameservers" | tr '\n' ','; echo ""
-    printf "Interfaces: "; eval $do_req "$URL/v1.json" | jq ".interfaces";
-    printf "Floating_ip: "; eval $do_req "$URL/v1.json" | jq ".floating_ip";
-    printf "Reserved_ip: "; eval $do_req "$URL/v1.json" | jq ".reserved_ip";
-    printf "Tags: "; eval $do_req "$URL/v1.json" | jq ".tags";
-    printf "Features: "; eval $do_req "$URL/v1.json" | jq ".features";
+    printf "Id: "; _do_imds_req "$URL/v1/id"; echo ""
+    printf "Region: "; _do_imds_req "$URL/v1/region"; echo ""
+    printf "Public keys: "; _do_imds_req "$URL/v1/public-keys"; echo ""
+    printf "User data: "; _do_imds_req "$URL/v1/user-data"; echo ""
+    printf "Dns: "; _do_imds_req "$URL/v1/dns/nameservers" | tr '\n' ','; echo ""
+    printf "Interfaces: "; _do_imds_req "$URL/v1.json" | jq ".interfaces";
+    printf "Floating_ip: "; _do_imds_req "$URL/v1.json" | jq ".floating_ip";
+    printf "Reserved_ip: "; _do_imds_req "$URL/v1.json" | jq ".reserved_ip";
+    printf "Tags: "; _do_imds_req "$URL/v1.json" | jq ".tags";
+    printf "Features: "; _do_imds_req "$URL/v1.json" | jq ".features";
   fi
   echo ""
 fi
@@ -10242,74 +10241,78 @@ fi
 
 if check_mitre_filter "T1552.005,T1580"; then
 if [ "$is_aliyun_ecs" = "Yes" ]; then
-  aliyun_req=""
   aliyun_token=""
-  if [ "$(command -v curl)" ]; then 
-    aliyun_token=$(curl -X PUT "http://100.100.100.200/latest/api/token" -H "X-aliyun-ecs-metadata-token-ttl-seconds:1000")
-    aliyun_req='curl -s -f -L -H "X-aliyun-ecs-metadata-token: $aliyun_token"'
+  if [ "$(command -v curl)" ]; then
+    aliyun_token=$(curl -X PUT "http://100.100.100.200/latest/api/token" -H "X-aliyun-ecs-metadata-token-ttl-seconds:1000" 2>/dev/null)
   elif [ "$(command -v wget)" ]; then
-    aliyun_token=$(wget -q -O - --method PUT "http://100.100.100.200/latest/api/token" --header "X-aliyun-ecs-metadata-token-ttl-seconds:1000")
-    aliyun_req='wget -q -O --header "X-aliyun-ecs-metadata-token: $aliyun_token"'
-  else 
+    aliyun_token=$(wget -q -O - --method PUT "http://100.100.100.200/latest/api/token" --header "X-aliyun-ecs-metadata-token-ttl-seconds:1000" 2>/dev/null)
+  else
     echo "Neither curl nor wget were found, I can't enumerate the metadata service :("
   fi
+  _aliyun_imds_req() {
+    if [ "$(command -v curl)" ]; then
+      curl -s -f -L -H "X-aliyun-ecs-metadata-token: $aliyun_token" "$1" 2>/dev/null
+    elif [ "$(command -v wget)" ]; then
+      wget -q -O - --header "X-aliyun-ecs-metadata-token: $aliyun_token" "$1" 2>/dev/null
+    fi
+  }
   if [ "$aliyun_token" ]; then
     print_2title "Aliyun ECS Enumeration" "T1552.005,T1580"
     print_info "https://help.aliyun.com/zh/ecs/user-guide/view-instance-metadata"
     echo ""
     print_3title "Instance Info" "T1552.005,T1580"
-    i_hostname=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/hostname)
+    i_hostname=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/hostname)
     [ "$i_hostname" ] && echo "Hostname: $i_hostname"
-    i_instance_id=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/instance-id)
+    i_instance_id=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/instance-id)
     [ "$i_instance_id" ] && echo "Instance ID: $i_instance_id"
     # no dup of hostname if in ACK it possibly leaks aliyun cluster service ClusterId
-    i_instance_name=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/instance/instance-name)
+    i_instance_name=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/instance/instance-name)
     [ "$i_instance_name" ] && echo "Instance Name: $i_instance_name"
-    i_instance_type=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/instance/instance-type)
+    i_instance_type=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/instance/instance-type)
     [ "$i_instance_type" ] && echo "Instance Type: $i_instance_type"
-    i_aliyun_owner_account=$(eval $aliyun_req http://i00.100.100.200/latest/meta-data/owner-account-id)
+    i_aliyun_owner_account=$(_aliyun_imds_req http://i00.100.100.200/latest/meta-data/owner-account-id)
     [ "$i_aliyun_owner_account" ] && echo "Aliyun Owner Account: $i_aliyun_owner_account"
-    i_region_id=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/region-id)
+    i_region_id=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/region-id)
     [ "$i_region_id" ] && echo "Region ID: $i_region_id"
-    i_zone_id=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/zone-id)
+    i_zone_id=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/zone-id)
     [ "$i_zone_id" ] && echo "Zone ID: $i_zone_id"
     echo ""
     print_3title "Network Info" "T1552.005,T1580"
-    i_pub_ipv4=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/public-ipv4)
+    i_pub_ipv4=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/public-ipv4)
     [ "$i_pub_ipv4" ] && echo "Public IPv4: $i_pub_ipv4"
-    i_priv_ipv4=$(eval $aliyun_req http://100.100.100.200/latest/meta-data/private-ipv4)
+    i_priv_ipv4=$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/private-ipv4)
     [ "$i_priv_ipv4" ] && echo "Private IPv4: $i_priv_ipv4"
-    net_dns=$(eval $aliyun_req  http://100.100.100.200/latest/meta-data/dns-conf/nameservers)
+    net_dns=$(_aliyun_imds_req  http://100.100.100.200/latest/meta-data/dns-conf/nameservers)
     [ "$net_dns" ] && echo "DNS: $net_dns"
     echo "========"
-    for mac in $(eval $aliyun_req  http://100.100.100.200/latest/meta-data/network/interfaces/macs/); do
+    for mac in $(_aliyun_imds_req  http://100.100.100.200/latest/meta-data/network/interfaces/macs/); do
       echo "  Mac: $mac"
-      echo "  Mac interface id: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/network-interface-id)
-      echo "  Mac netmask: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/netmask)
-      echo "  Mac vpc id: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vpc-id)
-      echo "  Mac vpc cidr: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vpc-cidr-block)
-      echo "  Mac vpc cidr (v6): "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vpc-ipv6-cidr-blocks)
-      echo "  Mac vswitch id: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vswitch-id)
-      echo "  Mac vswitch cidr: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vswitch-cidr-block)
-      echo "  Mac vswitch cidr (v6): "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vswitch-ipv6-cidr-block)
-      echo "  Mac private ips: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/private-ipv4s)
-      echo "  Mac private ips (v6): "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/ipv6s)
-      echo "  Mac gateway: "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/gateway)
-      echo "  Mac gateway (v6): "$(eval $aliyun_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/ipv6-gateway)
+      echo "  Mac interface id: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/network-interface-id)
+      echo "  Mac netmask: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/netmask)
+      echo "  Mac vpc id: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vpc-id)
+      echo "  Mac vpc cidr: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vpc-cidr-block)
+      echo "  Mac vpc cidr (v6): "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vpc-ipv6-cidr-blocks)
+      echo "  Mac vswitch id: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vswitch-id)
+      echo "  Mac vswitch cidr: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vswitch-cidr-block)
+      echo "  Mac vswitch cidr (v6): "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/vswitch-ipv6-cidr-block)
+      echo "  Mac private ips: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/private-ipv4s)
+      echo "  Mac private ips (v6): "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/ipv6s)
+      echo "  Mac gateway: "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/gateway)
+      echo "  Mac gateway (v6): "$(_aliyun_imds_req http://100.100.100.200/latest/meta-data/network/interfaces/macs/$mac/ipv6-gateway)
       echo "======="
     done
     echo ""
     print_3title "Service account " "T1552.005,T1580"
-    for sa in $(eval $aliyun_req "http://100.100.100.200/latest/meta-data/ram/security-credentials/"); do 
+    for sa in $(_aliyun_imds_req "http://100.100.100.200/latest/meta-data/ram/security-credentials/"); do 
       echo "  Name: $sa"
-      echo "  STS Token: "$(eval $aliyun_req "http://100.100.100.200/latest/meta-data/ram/security-credentials/$sa")
+      echo "  STS Token: "$(_aliyun_imds_req "http://100.100.100.200/latest/meta-data/ram/security-credentials/$sa")
       echo "  =============="
     done
     echo ""
     print_3title "Possbile admin ssh Public keys" "T1552.005,T1580"
-    for key in $(eval $aliyun_req "http://100.100.100.200/latest/meta-data/public-keys/"); do
+    for key in $(_aliyun_imds_req "http://100.100.100.200/latest/meta-data/public-keys/"); do
       echo "  Name: $key"
-      echo "  Key: "$(eval $aliyun_req "http://100.100.100.200/latest/meta-data/public-keys/${key}openssh-key")
+      echo "  Key: "$(_aliyun_imds_req "http://100.100.100.200/latest/meta-data/public-keys/${key}openssh-key")
       echo "  =============="
     done
   fi
@@ -10326,24 +10329,23 @@ if [ "$is_ibm_vm" = "Yes" ]; then
     TOKEN_HEADER="Authorization: Bearer $IBM_TOKEN"
     ACCEPT_HEADER="Accept: application/json"
     URL="http://169.254.169.254/latest/meta-data"
-    ibm_req=""
-    if [ "$(command -v curl || echo -n '')" ]; then
-        ibm_req="curl -s -f -L -H '$TOKEN_HEADER' -H '$ACCEPT_HEADER'"
-    elif [ "$(command -v wget || echo -n '')" ]; then
-        ibm_req="wget -q -O - --header '$TOKEN_HEADER' -H '$ACCEPT_HEADER'"
-    else 
-        echo "Neither curl nor wget were found, I can't enumerate the metadata service :("
-    fi
-    if [ "$ibm_req" ]; then
+    _ibm_imds_req() {
+      if [ "$(command -v curl || echo -n '')" ]; then
+        curl -s -f -L -H "$TOKEN_HEADER" -H "$ACCEPT_HEADER" "$@" 2>/dev/null
+      elif [ "$(command -v wget || echo -n '')" ]; then
+        wget -q -O - --header "$TOKEN_HEADER" "$@" 2>/dev/null
+      fi
+    }
+    if [ "$(command -v curl || command -v wget || echo -n '')" ]; then
       print_3title "Instance Details" "T1552.005,T1580"
-      exec_with_jq eval $ibm_req "http://169.254.169.254/metadata/v1/instance?version=2022-03-01"
+      exec_with_jq _ibm_imds_req "http://169.254.169.254/metadata/v1/instance?version=2022-03-01"
       print_3title "Keys and User data" "T1552.005,T1580"
-      exec_with_jq eval $ibm_req "http://169.254.169.254/metadata/v1/instance/initialization?version=2022-03-01"
-      exec_with_jq eval $ibm_req "http://169.254.169.254/metadata/v1/keys?version=2022-03-01"
+      exec_with_jq _ibm_imds_req "http://169.254.169.254/metadata/v1/instance/initialization?version=2022-03-01"
+      exec_with_jq _ibm_imds_req "http://169.254.169.254/metadata/v1/keys?version=2022-03-01"
       print_3title "Placement Groups" "T1552.005,T1580"
-      exec_with_jq eval $ibm_req "http://169.254.169.254/metadata/v1/placement_groups?version=2022-03-01"
+      exec_with_jq _ibm_imds_req "http://169.254.169.254/metadata/v1/placement_groups?version=2022-03-01"
       print_3title "IAM credentials" "T1552.005,T1580"
-      exec_with_jq eval $ibm_req -X POST "http://169.254.169.254/instance_identity/v1/iam_token?version=2022-03-01"
+      exec_with_jq _ibm_imds_req -X POST "http://169.254.169.254/instance_identity/v1/iam_token?version=2022-03-01"
     fi
   fi
   echo ""
@@ -10353,69 +10355,68 @@ fi
 
 if check_mitre_filter "T1552.005,T1580"; then
 if [ "$is_tencent_cvm" = "Yes" ]; then
-  tencent_req=""
-  if [ "$(command -v curl)" ]; then 
-    tencent_req='curl --connect-timeout 2 -sfkG'
-  elif [ "$(command -v wget)" ]; then
-    tencent_req='wget -q --timeout 2 --tries 1  -O -'
-  else 
-    echo "Neither curl nor wget were found, I can't enumerate the metadata service :("
-  fi
+  _tencent_imds_req() {
+    if [ "$(command -v curl)" ]; then
+      curl --connect-timeout 2 -sfkG "$1" 2>/dev/null
+    elif [ "$(command -v wget)" ]; then
+      wget -q --timeout 2 --tries 1 -O - "$1" 2>/dev/null
+    fi
+  }
     print_2title "Tencent CVM Enumeration" "T1552.005,T1580"
     print_info "https://cloud.tencent.com/document/product/213/4934"
     # Todo: print_info "Hacktricks Documents needs to be updated"
     echo ""
     print_3title "Instance Info" "T1552.005,T1580"
-    i_tencent_owner_account=$(eval $tencent_req http://169.254.0.23/latest/meta-data/app-id)
+    i_tencent_owner_account=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/app-id)
     [ "$i_tencent_owner_account" ] && echo "Tencent Owner Account: $i_tencent_owner_account"
-    i_hostname=$(eval $tencent_req http://169.254.0.23/latest/meta-data/hostname)
+    i_hostname=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/hostname)
     [ "$i_hostname" ] && echo "Hostname: $i_hostname"
-    i_instance_id=$(eval $tencent_req http://169.254.0.23/latest/meta-data/instance-id)
+    i_instance_id=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/instance-id)
     [ "$i_instance_id" ] && echo "Instance ID: $i_instance_id"
-    i_instance_id=$(eval $tencent_req http://169.254.0.23/latest/meta-data/uuid)
+    i_instance_id=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/uuid)
     [ "$i_instance_id" ] && echo "Instance ID: $i_instance_id"
-    i_instance_name=$(eval $tencent_req http://169.254.0.23/latest/meta-data/instance-name)
+    i_instance_name=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/instance-name)
     [ "$i_instance_name" ] && echo "Instance Name: $i_instance_name"
-    i_instance_type=$(eval $tencent_req http://169.254.0.23/latest/meta-data/instance/instance-type)
+    i_instance_type=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/instance/instance-type)
     [ "$i_instance_type" ] && echo "Instance Type: $i_instance_type"
-    i_region_id=$(eval $tencent_req http://169.254.0.23/latest/meta-data/placement/region)
+    i_region_id=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/placement/region)
     [ "$i_region_id" ] && echo "Region ID: $i_region_id"
-    i_zone_id=$(eval $tencent_req http://169.254.0.23/latest/meta-data/placement/zone)
+    i_zone_id=$(_tencent_imds_req http://169.254.0.23/latest/meta-data/placement/zone)
     [ "$i_zone_id" ] && echo "Zone ID: $i_zone_id"
     echo ""
     print_3title "Network Info" "T1552.005,T1580"
-    for mac_tencent in $(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/); do
+    for mac_tencent in $(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/); do
       echo "  Mac: $mac_tencent"
-      echo "  Primary IPv4: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/primary-local-ipv4)
-      echo "  Mac public ips: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/public-ipv4s)
-      echo "  Mac vpc id: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/vpc-id)
-      echo "  Mac subnet id: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/subnet-id)
-      for lipv4 in $(eval $tencent_req  http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s); do
-        echo "  Mac local ips: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/local-ipv4)
-        echo "  Mac gateways: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/gateway)
-        echo "  Mac public ips: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/public-ipv4)
-        echo "  Mac public ips mode: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/public-ipv4-mode)
-        echo "  Mac subnet mask: "$(eval $tencent_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/subnet-mask)
+      echo "  Primary IPv4: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/primary-local-ipv4)
+      echo "  Mac public ips: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/public-ipv4s)
+      echo "  Mac vpc id: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/vpc-id)
+      echo "  Mac subnet id: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/subnet-id)
+      for lipv4 in $(_tencent_imds_req  http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s); do
+        echo "  Mac local ips: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/local-ipv4)
+        echo "  Mac gateways: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/gateway)
+        echo "  Mac public ips: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/public-ipv4)
+        echo "  Mac public ips mode: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/public-ipv4-mode)
+        echo "  Mac subnet mask: "$(_tencent_imds_req http://169.254.0.23/latest/meta-data/network/interfaces/macs/$mac_tencent/local-ipv4s/$lipv4/subnet-mask)
       done
     echo "======="
     done
     echo ""
     print_3title "Service account " "T1552.005,T1580"
-    for sa_tencent in $(eval $tencent_req "http://169.254.0.23/latest/meta-data/cam/security-credentials/"); do 
+    for sa_tencent in $(_tencent_imds_req "http://169.254.0.23/latest/meta-data/cam/security-credentials/"); do 
       echo "  Name: $sa_tencent"
-      echo "  STS Token: "$(eval $tencent_req "http://169.254.0.23/latest/meta-data/cam/security-credentials/$sa_tencent")
+      echo "  STS Token: "$(_tencent_imds_req "http://169.254.0.23/latest/meta-data/cam/security-credentials/$sa_tencent")
       echo "  =============="
     done
     echo ""
     print_3title "Possbile admin ssh Public keys" "T1552.005,T1580"
-    for key_tencent in $(eval $tencent_req "http://169.254.0.23/latest/meta-data/public-keys/"); do
+    for key_tencent in $(_tencent_imds_req "http://169.254.0.23/latest/meta-data/public-keys/"); do
       echo "  Name: $key_tencent"
-      echo "  Key: "$(eval $tencent_req "http://169.254.0.23/latest/meta-data/public-keys/${key_tencent}openssh-key")
+      echo "  Key: "$(_tencent_imds_req "http://169.254.0.23/latest/meta-data/public-keys/${key_tencent}openssh-key")
       echo "  =============="
     done
     echo ""
     print_3title "User Data" "T1552.005,T1580"
-    eval $tencent_req http://169.254.0.23/latest/user-data; echo ""
+    _tencent_imds_req http://169.254.0.23/latest/user-data; echo ""
 fi
 
 fi
