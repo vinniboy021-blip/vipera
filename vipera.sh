@@ -300,14 +300,6 @@ print_3title_no_nl(){
   printf "\033[2K\r"
   printf ${BLUE}"══╣ $GREEN${1}..."$NC #There are 2 "═"
 }
-eval_bckgrd(){
-  ( eval "$1" ) &
-  _bckgrd_pid=$!
-  CONT_THREADS=$(($CONT_THREADS+1))
-  if [ "$(($CONT_THREADS%$THREADS))" -eq "0" ]; then
-    wait
-  fi
-}
 print_banner(){
   if [ "$MACPEAS" ]; then
     bash -c "printf '                         \e[38;5;238m▄\e[38;5;233m▄\e[38;5;235m▄\e[38;5;65m▄\e[48;5;239m\e[38;5;107m▄\e[48;5;234m\e[38;5;71m▄\e[48;5;233m\e[38;5;71m▄\e[48;5;232m\e[38;5;71m▄\e[48;5;0m\e[38;5;71m▄\e[48;5;232m\e[38;5;71m▄\e[48;5;232m\e[38;5;71m▄\e[48;5;233m\e[38;5;71m▄\e[48;5;233m\e[38;5;71m▄\e[48;5;235m\e[38;5;71m▄\e[48;5;240m\e[38;5;65m▄\e[0m\e[38;5;237m▄\e[38;5;234m▄\e[38;5;233m▄\e[38;5;232m▄\e[38;5;239m▄\e[0m
@@ -5778,7 +5770,7 @@ print_ps(){
 su_try_pwd(){
   BFUSER=$1
   PASSWORDTRY=$2
-  trysu=$(echo "$PASSWORDTRY" | timeout 1 su $BFUSER -c whoami 2>/dev/null)
+  trysu=$(echo "$PASSWORDTRY" | timeout 1 su "$BFUSER" -c whoami 2>/dev/null)
     if [ $? -eq 0 ]; then
     echo "  You can login as $BFUSER using password: $PASSWORDTRY" | sed -${E} "s,.*,${SED_RED_YELLOW},"
   fi
@@ -6329,7 +6321,7 @@ su_brute_user_num(){
   TRIES=$2
   su_try_pwd "$BFUSER" "" &    #Try without password
   su_try_pwd "$BFUSER" "$BFUSER" & #Try username as password
-  su_try_pwd "$BFUSER" "$(echo $BFUSER | rev 2>/dev/null)" & #Try reverse username as password
+  su_try_pwd "$BFUSER" "$(echo "$BFUSER" | rev 2>/dev/null)" & #Try reverse username as password
   if [ "$PASSWORD" ]; then
     su_try_pwd "$BFUSER" "$PASSWORD" & #Try given password
   fi
@@ -22743,7 +22735,7 @@ fi
 if ! [ "$STRACE" ]; then
   echo_not_found "strace"
 fi
-suids_files=$(find $ROOT_FOLDER -perm -4000 -type f ! -path "/dev/*" 2>/dev/null)
+suids_files=$(find "$ROOT_FOLDER" -perm -4000 -type f ! -path "/dev/*" 2>/dev/null)
 printf "%s\n" "$suids_files" | while IFS= read -r sfile; do
   [ -z "$sfile" ] && continue
   s=$(ls -lahtr "$sfile")
@@ -22899,7 +22891,7 @@ fi
 if check_mitre_filter "T1548.001"; then
 print_2title "SGID" "T1548.001"
 print_info "https://book.hacktricks.wiki/en/linux-hardening/interesting-files-permissions/suid-sgid-and-acl-triage.html#enumerate-privileged-executables"
-sgids_files=$(find $ROOT_FOLDER -perm -2000 -type f ! -path "/dev/*" 2>/dev/null)
+sgids_files=$(find "$ROOT_FOLDER" -perm -2000 -type f ! -path "/dev/*" 2>/dev/null)
 printf "%s\n" "$sgids_files" | while IFS= read -r sfile; do
   [ -z "$sfile" ] && continue
   s=$(ls -lahtr "$sfile")
@@ -23398,7 +23390,7 @@ fi
 if check_mitre_filter "T1083"; then
 if ! [ "$IAMROOT" ]; then
   print_2title "Searching folders owned by me containing others files on it (limit 100)" "T1083"
-  (find $ROOT_FOLDER -type d -user "$USER" ! -path "/proc/*" ! -path "/sys/*" 2>/dev/null | head -n 100 | while read d; do find "$d" -maxdepth 1 ! -user "$USER" \( -type f -or -type d \) -exec ls -l {} \; 2>/dev/null; done) | sort | uniq | sed -${E} "s,$sh_usrs,${SED_LIGHT_CYAN},g" | sed -${E} "s,$nosh_usrs,${SED_BLUE},g" | sed -${E} "s,$knw_usrs,${SED_GREEN},g" | sed "s,$USER,${SED_LIGHT_MAGENTA},g" | sed "s,root,${C}[1;13m&${C}[0m,g"
+  (find "$ROOT_FOLDER" -type d -user "$USER" ! -path "/proc/*" ! -path "/sys/*" 2>/dev/null | head -n 100 | while read d; do find "$d" -maxdepth 1 ! -user "$USER" \( -type f -or -type d \) -exec ls -l {} \; 2>/dev/null; done) | sort | uniq | sed -${E} "s,$sh_usrs,${SED_LIGHT_CYAN},g" | sed -${E} "s,$nosh_usrs,${SED_BLUE},g" | sed -${E} "s,$knw_usrs,${SED_GREEN},g" | sed "s,$USER,${SED_LIGHT_MAGENTA},g" | sed "s,root,${C}[1;13m&${C}[0m,g"
   echo ""
 fi
 
@@ -23407,7 +23399,7 @@ fi
 if check_mitre_filter "T1083"; then
 if ! [ "$IAMROOT" ]; then
   print_2title "Readable files belonging to root and readable by me but not world readable" "T1083"
-  (find $ROOT_FOLDER -type f -user root ! -perm -o=r ! -path "/proc/*" 2>/dev/null | grep -v "\.journal" | while read f; do if [ -r "$f" ]; then ls -l "$f" 2>/dev/null | sed -${E} "s,/.*,${SED_RED},"; fi; done) || echo_not_found
+  (find "$ROOT_FOLDER" -type f -user root ! -perm -o=r ! -path "/proc/*" 2>/dev/null | grep -v "\.journal" | while read f; do if [ -r "$f" ]; then ls -l "$f" 2>/dev/null | sed -${E} "s,/.*,${SED_RED},"; fi; done) || echo_not_found
   echo ""
 fi
 
@@ -23421,7 +23413,7 @@ if ! [ "$IAMROOT" ]; then
   # These trees were already excluded from results. Prune them before walking
   # their descendants so a large home or virtual filesystem cannot dominate
   # this scan.
-  obmowbe=$(find $ROOT_FOLDER \
+  obmowbe=$(find "$ROOT_FOLDER" \
     '(' -path /proc -o -path /sys -o -path /dev -o -path /snap ')' -prune \
       '(' -type f -o -type d ')' '(' -user "$USER" -o -perm -o=w ')' -print -o \
     '(' -path "$HOME" -prune '(' -type f -o -type d ')' '(' -user "$USER" -o -perm -o=w ')' -print ')' -o \
@@ -23446,7 +23438,7 @@ if ! [ "$IAMROOT" ]; then
   print_2title "Interesting GROUP writable files (not in Home) (max 200)" "T1574.009,T1574.010"
   print_info "https://book.hacktricks.wiki/en/linux-hardening/linux-basics/linux-privilege-escalation/index.html#writable-files"
   for g in $(groups); do
-    iwfbg=$(find $ROOT_FOLDER \
+    iwfbg=$(find "$ROOT_FOLDER" \
       '(' -path /proc -o -path /sys ')' -prune \
         '(' -type f -o -type d ')' -group "$g" -perm -g=w -print -o \
       '(' -path "$HOME" -prune '(' -type f -o -type d ')' -group "$g" -perm -g=w -print ')' -o \
@@ -23648,9 +23640,9 @@ if check_mitre_filter "T1083"; then
 if ! [ "$SEARCH_IN_FOLDER" ]; then
   print_2title "Unexpected in root" "T1083"
   if [ "$MACPEAS" ]; then
-    (find $ROOT_FOLDER -maxdepth 1 | grep -Ev "$commonrootdirsMacG" | sed -${E} "s,.*,${SED_RED},") || echo_not_found
+    (find "$ROOT_FOLDER" -maxdepth 1 | grep -Ev "$commonrootdirsMacG" | sed -${E} "s,.*,${SED_RED},") || echo_not_found
   else
-    (find $ROOT_FOLDER -maxdepth 1 | grep -Ev "$commonrootdirsG" | sed -${E} "s,.*,${SED_RED},") || echo_not_found
+    (find "$ROOT_FOLDER" -maxdepth 1 | grep -Ev "$commonrootdirsG" | sed -${E} "s,.*,${SED_RED},") || echo_not_found
   fi
   echo ""
 fi
@@ -23659,7 +23651,7 @@ fi
 
 if check_mitre_filter "T1083"; then
 print_2title "Modified interesting files in the last 5mins (limit 100)" "T1083"
-find $ROOT_FOLDER -type f -mmin -5 ! -path "/proc/*" ! -path "/sys/*" ! -path "/run/*" ! -path "/dev/*" ! -path "/var/lib/*" ! -path "/private/var/*" 2>/dev/null | grep -v "/vipera" | head -n 100 | sed -${E} "s,$Wfolders,${SED_RED},"
+find "$ROOT_FOLDER" -type f -mmin -5 ! -path "/proc/*" ! -path "/sys/*" ! -path "/run/*" ! -path "/dev/*" ! -path "/var/lib/*" ! -path "/private/var/*" 2>/dev/null | grep -v "/vipera" | head -n 100 | sed -${E} "s,$Wfolders,${SED_RED},"
 echo ""
 
 fi
@@ -23670,7 +23662,7 @@ print_2title "Writable log files (logrotten) (limit 50)" "T1070.002"
   print_info "https://book.hacktricks.wiki/en/linux-hardening/linux-basics/linux-privilege-escalation/index.html#logrotate-exploitation"
   logrotate --version 2>/dev/null || echo_not_found "logrotate"
   lastWlogFolder="ImPOsSiBleeElastWlogFolder"
-  logfind=$(find $ROOT_FOLDER -type f -name "*.log" -o -name "*.log.*" 2>/dev/null | awk -F/ '{line_init=$0; if (!cont){ cont=0 }; $NF=""; act=$0; if (act == pre){(cont += 1)} else {cont=0}; if (cont < 3){ print line_init; }; if (cont == "3"){print "#)You_can_write_more_log_files_inside_last_directory"}; pre=act}' | head -n 50)
+  logfind=$(find "$ROOT_FOLDER" -type f -name "*.log" -o -name "*.log.*" 2>/dev/null | awk -F/ '{line_init=$0; if (!cont){ cont=0 }; $NF=""; act=$0; if (act == pre){(cont += 1)} else {cont=0}; if (cont < 3){ print line_init; }; if (cont == "3"){print "#)You_can_write_more_log_files_inside_last_directory"}; pre=act}' | head -n 50)
   printf "%s\n" "$logfind" | while read log; do
     if ! [ "$IAMROOT" ] && [ "$log" ] && [ -w "$log" ] || ! [ "$IAMROOT" ] && echo "$log" | grep -qE "$Wfolders"; then #Only print info if something interesting found
       if echo "$log" | grep -q "You_can_write_more_log_files_inside_last_directory"; then printf $ITALIC"$log\n"$NC;
@@ -23878,7 +23870,7 @@ fi
 
 if check_mitre_filter "T1552.001"; then
 print_2title "Backup files (limited 100)" "T1552.001"
-backs=$(find $ROOT_FOLDER -type f \( -name "*backup*" -o -name "*\.bak" -o -name "*\.bak\.*" -o -name "*\.bck" -o -name "*\.bck\.*" -o -name "*\.bk" -o -name "*\.bk\.*" -o -name "*\.old" -o -name "*\.old\.*" \) -not -path "/proc/*" 2>/dev/null)
+backs=$(find "$ROOT_FOLDER" -type f \( -name "*backup*" -o -name "*\.bak" -o -name "*\.bak\.*" -o -name "*\.bck" -o -name "*\.bck\.*" -o -name "*\.bk" -o -name "*\.bk\.*" -o -name "*\.old" -o -name "*\.old\.*" \) -not -path "/proc/*" 2>/dev/null)
 printf "%s\n" "$backs" | head -n 100 | while read b ; do
   if [ -r "$b" ]; then
     ls -l "$b" | grep -Ev "$notBackup" | grep -Ev "$notExtensions" | sed -${E} "s,backup|bck|\.bak|\.old,${SED_RED},g";
@@ -24214,7 +24206,7 @@ fi
 
 if check_mitre_filter "T1564.001"; then
 print_2title "All relevant hidden files (not in /sys/ or the ones listed in the previous check) (limit 70)" "T1564.001"
-find $ROOT_FOLDER -type f -iname ".*" ! -path "/sys/*" ! -path "/System/*" ! -path "/private/var/*" -exec ls -l {} \; 2>/dev/null | grep -Ev "$INT_HIDDEN_FILES" | grep -Ev "_history$|\.gitignore|.npmignore|\.listing|\.ignore|\.uuid|\.depend|\.placeholder|\.gitkeep|\.keep|\.keepme|\.travis.yml" | head -n 70
+find "$ROOT_FOLDER" -type f -iname ".*" ! -path "/sys/*" ! -path "/System/*" ! -path "/private/var/*" -exec ls -l {} \; 2>/dev/null | grep -Ev "$INT_HIDDEN_FILES" | grep -Ev "_history$|\.gitignore|.npmignore|\.listing|\.ignore|\.uuid|\.depend|\.placeholder|\.gitkeep|\.keep|\.keepme|\.travis.yml" | head -n 70
 echo ""
 
 fi
