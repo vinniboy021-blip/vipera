@@ -13,6 +13,11 @@ else
   IAMROOT=""
   MAXPATH_FIND_W="7"
 fi
+# Cache de informações do kernel — evita fork repetido de uname ao longo do script
+_UNAME_R=$(uname -r 2>/dev/null)
+_UNAME_S=$(uname -s 2>/dev/null)
+_UNAME_M=$(uname -m 2>/dev/null)
+_UNAME_A=$(uname -a 2>/dev/null)
 ###########################################
 #---------------) Colors (----------------#
 ###########################################
@@ -5066,7 +5071,7 @@ checkProcSysBreakouts(){
     dev_mounted="Yes";
   fi
   proc_mounted="No"
-  if [ $(ls /proc | grep -E "^[0-9]" | wc -l) -gt 50 ]; then
+  if [ $(echo /proc/[0-9]*/ | tr ' ' '\n' | wc -l) -gt 50 ] 2>/dev/null; then
     proc_mounted="Yes";
   fi
   if command -v unshare >/dev/null 2>&1 && command -v sh >/dev/null 2>&1; then
@@ -10737,7 +10742,7 @@ if ! [ "$SEARCH_IN_FOLDER" ]; then
   checkRootWritableProcessPaths
   # Additional checks for each process
   print_2title "Processes with unusual configurations" "T1057"
-  for pid in $(find /proc -maxdepth 1 -regex '/proc/[0-9]+' -printf "%f\n" 2>/dev/null); do
+  for _pd in /proc/[0-9]*/; do pid=${_pd#/proc/}; pid=${pid%/}
     # Skip if process doesn't exist or we can't access it
     [ ! -d "/proc/$pid" ] && continue
     # Get process user and command
@@ -10781,7 +10786,7 @@ if ! [ "$SEARCH_IN_FOLDER" ]; then
   # Check for processes with open handles to credential files
   echo ""
   print_2title "Opened Files by processes" "T1003.007"
-  for pid in $(find /proc -maxdepth 1 -regex '/proc/[0-9]+' -printf "%f\n" 2>/dev/null); do
+  for _pd in /proc/[0-9]*/; do pid=${_pd#/proc/}; pid=${pid%/}
     # Skip if process doesn't exist or we can't access it
     [ ! -d "/proc/$pid" ] && continue
     [ ! -r "/proc/$pid/fd" ] && continue
@@ -10821,7 +10826,7 @@ if ! [ "$SEARCH_IN_FOLDER" ]; then
   # Check for processes with memory-mapped files that might contain credentials
   echo ""
   print_2title "Processes with memory-mapped credential files" "T1003.007"
-  for pid in $(find /proc -maxdepth 1 -regex '/proc/[0-9]+' -printf "%f\n" 2>/dev/null); do
+  for _pd in /proc/[0-9]*/; do pid=${_pd#/proc/}; pid=${pid%/}
     # Skip if process doesn't exist or we can't access it
     [ ! -d "/proc/$pid" ] && continue
     [ ! -r "/proc/$pid/maps" ] && continue
@@ -10852,7 +10857,7 @@ if ! [ "$SEARCH_IN_FOLDER" ]; then
     print_info "https://book.hacktricks.wiki/en/linux-hardening/processes-crontab-systemd-dbus/process-enumeration-and-service-paths.html#map-processes-and-ownership"
     # Get list of writable binaries
     binW=""
-    for pid in $(find /proc -maxdepth 1 -regex '/proc/[0-9]+' -printf "%f\n" 2>/dev/null); do
+    for _pd in /proc/[0-9]*/; do pid=${_pd#/proc/}; pid=${pid%/}
       # Skip if process doesn't exist or we can't access it
       [ ! -r "/proc/$pid/exe" ] && continue
       # Get binary path
@@ -10868,7 +10873,7 @@ if ! [ "$SEARCH_IN_FOLDER" ]; then
       fi
     done
     # Get and display binary permissions
-    for pid in $(find /proc -maxdepth 1 -regex '/proc/[0-9]+' -printf "%f\n" 2>/dev/null); do
+    for _pd in /proc/[0-9]*/; do pid=${_pd#/proc/}; pid=${pid%/}
       # Skip if process doesn't exist or we can't access it
       [ ! -r "/proc/$pid/exe" ] && continue
       # Get binary path
@@ -10902,7 +10907,7 @@ if ! [ "$SEARCH_IN_FOLDER" ] && ! [ "$NOUSEPS" ]; then
     fi
   }
   # Find processes with PPID and user info, then filter those where PPID's user is different from the process's user
-  for pid in $(find /proc -maxdepth 1 -regex '/proc/[0-9]+' -printf "%f\n" 2>/dev/null); do
+  for _pd in /proc/[0-9]*/; do pid=${_pd#/proc/}; pid=${pid%/}
     # Skip if process doesn't exist or we can't access it
     [ ! -r "/proc/$pid/status" ] && continue
     # Get process user
@@ -10940,7 +10945,7 @@ if ! [ "$SEARCH_IN_FOLDER" ]; then
       fi
     }
     # Check each process
-    for pid in $(find /proc -maxdepth 1 -regex '/proc/[0-9]+' -printf "%f\n" 2>/dev/null); do
+    for _pd in /proc/[0-9]*/; do pid=${_pd#/proc/}; pid=${pid%/}
       # Skip if process doesn't exist or we can't access it
       [ ! -r "/proc/$pid/status" ] && continue
       [ ! -r "/proc/$pid/fd" ] && continue
@@ -24786,7 +24791,7 @@ fi
 
 # ── Kernel CVEs ─────────────────────────────────────────
 print_2title "Kernel CVEs (Dirty Pipe, GameOver(lay), Looney Tunables, nftables)"
-KVER=$(uname -r)
+KVER=${_UNAME_R:-$(uname -r 2>/dev/null)}
 extra_info "Kernel: $KVER"
 
 # CVE-2022-0847 afeta 5.8.0 ate 5.10.101, 5.15.0-5.15.24, 5.16.0-5.16.10 (fix: 5.10.102, 5.15.25, 5.16.11)
@@ -24997,10 +25002,11 @@ extra_info "Vars de ambiente atuais com credenciais:"
 env 2>/dev/null | grep -iE "pass|token|secret|key|api|cred|auth" | grep -v "^PATH\|^LS_COLORS"
 
 extra_info "Ambiente de processos em execucao:"
-for pid in $(ls /proc 2>/dev/null | grep -E "^[0-9]+$"); do
+for _pid_dir in /proc/[0-9]*/; do
+  pid=${_pid_dir#/proc/}; pid=${pid%/}
   result=$(strings "/proc/$pid/environ" 2>/dev/null | grep -iE "pass|token|secret|key|api_key|cred")
   if [ -n "$result" ]; then
-    PNAME=$(cat "/proc/$pid/comm" 2>/dev/null)
+    read -r PNAME < "/proc/$pid/comm" 2>/dev/null || PNAME="?"
     extra_hit "PID $pid ($PNAME):"
     echo "$result" | head -3
   fi
@@ -25151,10 +25157,11 @@ timeout 60 getcap -r / 2>/dev/null > "$_GETCAP_CACHE"
 grep -E "cap_sys_admin|cap_net_raw|cap_dac_override|cap_setuid|cap_sys_ptrace|cap_sys_module|cap_net_admin" \
   "$_GETCAP_CACHE" | while read line; do extra_hit "CAPABILITY PERIGOSA: $line"; done
 
-for pid in $(ls /proc 2>/dev/null | grep -E "^[0-9]+$"); do
+for _pid_dir in /proc/[0-9]*/; do
+  pid=${_pid_dir#/proc/}; pid=${pid%/}
   CAP=$(grep "CapEff" "/proc/$pid/status" 2>/dev/null | awk '{print $2}')
   if [ -n "$CAP" ] && [ "$CAP" != "0000000000000000" ]; then
-    PNAME=$(cat "/proc/$pid/comm" 2>/dev/null)
+    read -r PNAME < "/proc/$pid/comm" 2>/dev/null || PNAME="?"
     extra_warn "PID $pid ($PNAME) CapEff: $CAP"
   fi
 done
@@ -25913,7 +25920,7 @@ done
 # ── Kernel CVEs adicionais ───────────────────────────────
 print_2title "Kernel CVEs Adicionais (2022-0185, 2022-2586, 2023-0386, 2024-1086)"
 
-KVER=$(uname -r)
+KVER=${_UNAME_R:-$(uname -r 2>/dev/null)}
 KMAJ=$(echo "$KVER" | cut -d. -f1)
 KMIN=$(echo "$KVER" | cut -d. -f2)
 KPATCH=$(echo "$KVER" | cut -d. -f3 | grep -oE "^[0-9]+")
@@ -26237,11 +26244,13 @@ fi
 # ── Capabilities herdadas de processos pai ───────────────
 print_2title "Capabilities Herdadas (Processos Pai -> Filho)"
 extra_info "Processos com CapInh (Inheritable) nao-nulas:"
-for pid in $(ls /proc 2>/dev/null | grep -E "^[0-9]+$"); do
+for _pid_dir in /proc/[0-9]*/; do
+  pid=${_pid_dir#/proc/}; pid=${pid%/}
   CAP=$(grep "^CapInh" "/proc/$pid/status" 2>/dev/null | awk '{print $2}')
-  [ -n "$CAP" ] && [ "$CAP" != "0000000000000000" ] && \
-    PNAME=$(cat "/proc/$pid/comm" 2>/dev/null) && \
+  if [ -n "$CAP" ] && [ "$CAP" != "0000000000000000" ]; then
+    read -r PNAME < "/proc/$pid/comm" 2>/dev/null || PNAME="?"
     extra_warn "PID $pid ($PNAME) CapInh: $CAP -- filhos herdam estas caps"
+  fi
 done
 
 # ── find / unica passagem (cache para reuso) ─────────────
