@@ -21680,9 +21680,9 @@ if [ "$PSTORAGE_MYSQL" ] || [ "$DEBUG" ]; then
           grep -oaE "[-_\.\*a-zA-Z0-9]{3,}" "$f" | grep -v "mysql_native_password"
         fi
       done
-      for f in $(grep -lr "user\s*=" "$d" 2>/dev/null | grep -v "debian.cnf"); do
+      grep -lr "user\s*=" "$d" 2>/dev/null | grep -v "debian.cnf" | while IFS= read -r f; do
         if [ -r "$f" ]; then
-          u=$(cat "$f" | grep -v "#" | grep "user" | grep "=" 2>/dev/null)
+          u=$(grep -v "#" "$f" | grep "user" | grep "=" 2>/dev/null)
           echo "From '$f' Mysql user: $u" | sed -${E} "s,$sh_usrs,${SED_LIGHT_CYAN}," | sed -${E} "s,$nosh_usrs,${SED_BLUE}," | sed -${E} "s,$knw_usrs,${SED_GREEN}," | sed "s,$USER,${SED_LIGHT_MAGENTA}," | sed "s,root,${SED_RED},"
         fi
       done
@@ -22202,14 +22202,11 @@ if [ "$DEBUG" ] || { [ "$TIMEOUT" ] && [ "$(command -v psql 2>/dev/null || echo 
   postgres_fdw_hits=""
   for d in $postgres_fdw_dirs; do
     if [ -d "$d" ]; then
-      old_ifs="$IFS"
-      IFS="\n"
-      for f in $(find "$d" -maxdepth 5 -type f \( -name '*postgres_fdw*.sql' -o -name '*postgres_fdw*.psql' -o -name 'after-create.sql' \) 2>/dev/null); do
+      find "$d" -maxdepth 5 -type f \( -name '*postgres_fdw*.sql' -o -name '*postgres_fdw*.psql' -o -name 'after-create.sql' \) 2>/dev/null | while IFS= read -r f; do
         if [ -f "$f" ] && grep -qiE "alter[[:space:]]+role[[:space:]]+postgres[[:space:]]+superuser" "$f" 2>/dev/null; then
           postgres_fdw_hits="$postgres_fdw_hits\n$f"
         fi
       done
-      IFS="$old_ifs"
     fi
   done
   if [ "$postgres_fdw_hits" ]; then
@@ -23580,7 +23577,7 @@ if ! [ "$SEARCH_IN_FOLDER" ]; then
   print_2title ".sh files in path" "T1574.007"
   print_info "https://book.hacktricks.wiki/en/linux-hardening/processes-crontab-systemd-dbus/process-enumeration-and-service-paths.html#follow-the-service-execution-chain"
   echo $PATH | tr ":" "\n" | while read d; do
-    for f in $(find "$d" -name "*.sh" -o -name "*.sh.*" 2>/dev/null); do
+    find "$d" \( -name "*.sh" -o -name "*.sh.*" \) 2>/dev/null | while IFS= read -r f; do
       if ! [ "$IAMROOT" ] && [ -O "$f" ]; then
         echo "You own the script: $f" | sed -${E} "s,.*,${SED_RED},"
       elif ! [ "$IAMROOT" ] && [ -w "$f" ]; then #If write permision, win found (no check exploits)
@@ -24452,7 +24449,7 @@ if ! [ "$FAST" ] && ! [ "$SUPERFAST" ] && [ "$TIMEOUT" ]; then
     "$TIMEOUT" 150 find -L /var/www $backup_folders_row /tmp /etc /mnt /private -type f -exec grep -HniIE "$password_variable_regex" '{}' "$password_find_exec_end" 2>/dev/null | sed '/^.\{150\}./d' | grep -Ev "^#" | grep -iv "vipera" | sort | uniq | head -n 70 | sed -${E} "s,$pwd_in_variables1,${SED_RED},g" | sed -${E} "s,$pwd_in_variables2,${SED_RED},g" | sed -${E} "s,$pwd_in_variables3,${SED_RED},g" | sed -${E} "s,$pwd_in_variables4,${SED_RED},g" | sed -${E} "s,$pwd_in_variables5,${SED_RED},g" | sed -${E} "s,$pwd_in_variables6,${SED_RED},g" | sed -${E} "s,$pwd_in_variables7,${SED_RED},g" | sed -${E} "s,$pwd_in_variables8,${SED_RED},g" | sed -${E} "s,$pwd_in_variables9,${SED_RED},g" | sed -${E} "s,$pwd_in_variables10,${SED_RED},g" | sed -${E} "s,$pwd_in_variables11,${SED_RED},g" &
   else
     # shellcheck disable=SC2067
-    "$TIMEOUT" 150 find -L $SEARCH_IN_FOLDER -type f -exec grep -HniIE "$password_variable_regex" '{}' "$password_find_exec_end" 2>/dev/null | sed '/^.\{150\}./d' | grep -Ev "^#" | grep -iv "vipera" | sort | uniq | head -n 70 | sed -${E} "s,$pwd_in_variables1,${SED_RED},g" | sed -${E} "s,$pwd_in_variables2,${SED_RED},g" | sed -${E} "s,$pwd_in_variables3,${SED_RED},g" | sed -${E} "s,$pwd_in_variables4,${SED_RED},g" | sed -${E} "s,$pwd_in_variables5,${SED_RED},g" | sed -${E} "s,$pwd_in_variables6,${SED_RED},g" | sed -${E} "s,$pwd_in_variables7,${SED_RED},g" | sed -${E} "s,$pwd_in_variables8,${SED_RED},g" | sed -${E} "s,$pwd_in_variables9,${SED_RED},g" | sed -${E} "s,$pwd_in_variables10,${SED_RED},g" | sed -${E} "s,$pwd_in_variables11,${SED_RED},g" &
+    "$TIMEOUT" 150 find -L "$SEARCH_IN_FOLDER" -type f -exec grep -HniIE "$password_variable_regex" '{}' "$password_find_exec_end" 2>/dev/null | sed '/^.\{150\}./d' | grep -Ev "^#" | grep -iv "vipera" | sort | uniq | head -n 70 | sed -${E} "s,$pwd_in_variables1,${SED_RED},g" | sed -${E} "s,$pwd_in_variables2,${SED_RED},g" | sed -${E} "s,$pwd_in_variables3,${SED_RED},g" | sed -${E} "s,$pwd_in_variables4,${SED_RED},g" | sed -${E} "s,$pwd_in_variables5,${SED_RED},g" | sed -${E} "s,$pwd_in_variables6,${SED_RED},g" | sed -${E} "s,$pwd_in_variables7,${SED_RED},g" | sed -${E} "s,$pwd_in_variables8,${SED_RED},g" | sed -${E} "s,$pwd_in_variables9,${SED_RED},g" | sed -${E} "s,$pwd_in_variables10,${SED_RED},g" | sed -${E} "s,$pwd_in_variables11,${SED_RED},g" &
   fi
   wait
   echo ""
